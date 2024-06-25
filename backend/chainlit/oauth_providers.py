@@ -621,6 +621,29 @@ class GitlabOAuthProvider(OAuthProvider):
             return (gitlab_user, user)
 
 
+class CustomOAuthProvider(OAuthProvider):
+    id = "custom"
+    env = ["OAUTH_CUSTOM_ENABLED"]
+
+    def __init__(self):
+        self.domain = f"https://{os.environ.get('OAUTH_CUSTOM_DOMAIN', '').rstrip('/')}"
+        self.authorize_url = f"{self.domain}/login"
+
+    async def get_token(self, code: str, url: str):
+        return 'randomtoken'
+
+    async def get_user_info(self, token: str):
+        custom_user = 'hello world'
+        user = User(
+            identifier='johntan@tech.gov.sg',
+            metadata={
+                "image": "",
+                "provider": "custom",
+            },
+        )
+        return (custom_user, user)
+
+
 providers = [
     GithubOAuthProvider(),
     GoogleOAuthProvider(),
@@ -631,6 +654,7 @@ providers = [
     DescopeOAuthProvider(),
     AWSCognitoOAuthProvider(),
     GitlabOAuthProvider(),
+    CustomOAuthProvider()
 ]
 
 
