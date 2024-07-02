@@ -4,9 +4,10 @@ import urllib.parse
 from typing import Dict, List, Optional, Tuple
 
 import httpx
+from fastapi import HTTPException
+
 from chainlit.secret import random_secret
 from chainlit.user import User
-from fastapi import HTTPException
 
 
 class OAuthProvider:
@@ -623,25 +624,12 @@ class GitlabOAuthProvider(OAuthProvider):
 
 class CustomOAuthProvider(OAuthProvider):
     id = "custom"
-    env = ["OAUTH_CUSTOM_ENABLED"]
+    env = ["OAUTH_CUSTOM_ENABLED", "OAUTH_CUSTOM_DOMAIN", "OAUTH_CUSTOM_JWKS_ENDPOINT"]
 
     def __init__(self):
-        self.domain = f"https://{os.environ.get('OAUTH_CUSTOM_DOMAIN', '').rstrip('/')}"
+        self.domain = f"https://{os.environ.get('OAUTH_CUSTOM_DOMAIN','').rstrip('/')}"
         self.authorize_url = f"{self.domain}/login"
-
-    async def get_token(self, code: str, url: str):
-        return 'randomtoken'
-
-    async def get_user_info(self, token: str):
-        custom_user = 'hello world'
-        user = User(
-            identifier='johntan@tech.gov.sg',
-            metadata={
-                "image": "",
-                "provider": "custom",
-            },
-        )
-        return (custom_user, user)
+        self.jwks_endpoint = os.environ.get("OAUTH_CUSTOM_JWKS_ENDPOINT")
 
 
 providers = [
@@ -654,7 +642,7 @@ providers = [
     DescopeOAuthProvider(),
     AWSCognitoOAuthProvider(),
     GitlabOAuthProvider(),
-    CustomOAuthProvider()
+    CustomOAuthProvider(),
 ]
 
 
