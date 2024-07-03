@@ -6,6 +6,10 @@ import shutil
 import urllib.parse
 from typing import Any, Optional, Union
 
+import jwt
+import requests
+import httpx
+
 from chainlit.oauth_providers import get_oauth_provider
 from chainlit.secret import random_secret
 
@@ -19,7 +23,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import socketio
-from chainlit.auth import create_jwt, get_configuration, get_current_user
+from chainlit.auth import create_jwt, get_configuration, get_current_user, validate_jwt, decode_jwt
 from chainlit.config import (
     APP_ROOT,
     BACKEND_ROOT,
@@ -406,18 +410,18 @@ async def header_auth(request: Request):
 
 
 @router.get("/auth/oauth/custom")
-async def oauth_custom_login(provider_id: str, request: Request):
+async def oauth_custom_login(request: Request):
     if config.code.oauth_callback is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No oauth_callback defined",
         )
 
-    provider = get_oauth_provider(provider_id)
+    provider = get_oauth_provider('custom')
     if not provider:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Provider {provider_id} not found",
+            detail=f"Provider custom not found",
         )
 
     random = random_secret(32)
@@ -487,13 +491,9 @@ async def oauth_login(provider_id: str, request: Request):
 
 @router.get("/auth/oauth/custom/callback")
 async def oauth_custom_callback(
-    provider_id: str,
     request: Request,
     error: Optional[str] = None,
-    code: Optional[str] = None,
-    state: Optional[str] = None,
-    id_token: Optional[str] = None,
-    refresh_token: Optional[str] = None
+    id_token: Optional[str] = None
 ):
     if config.code.oauth_callback is None:
         raise HTTPException(
@@ -501,11 +501,11 @@ async def oauth_custom_callback(
             detail="No oauth_callback defined",
         )
 
-    provider = get_oauth_provider(provider_id)
+    provider = get_oauth_provider("custom")
     if not provider:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Provider {provider_id} not found",
+            detail="Provider custom not found",
         )
 
     if error:
@@ -520,21 +520,27 @@ async def oauth_custom_callback(
         )
         return response
 
-    # Check the state from the oauth provider against the browser cookie
-    # oauth_state = request.cookies.get("oauth_state")
-    # if oauth_state != state:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="Unauthorized",
-    #     )
+    if not id_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing id_token",
+        )
 
-    url = get_user_facing_url(request.url)
-    token = await provider.get_token(code, url)
+    key = validate_jwt(id_token, jwks_uri=provider.jwks_endpoint)
+    raw_user_data = decode_jwt(id_token,
+                      key,
+                      audience=provider.jwks_client_id,
+                      issuer=provider.jwks_issuer)
 
-    (raw_user_data, default_user) = await provider.get_user_info(token)
-
+    current_user = User(
+            identifier=raw_user_data['email'],
+            metadata={
+                "image": "",
+                "provider": "custom"
+            }
+        )
     user = await config.code.oauth_callback(
-        provider_id, id_token, raw_user_data, default_user
+        "custom", id_token, raw_user_data, current_user
     )
 
     if not user:
