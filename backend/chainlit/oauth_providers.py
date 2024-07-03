@@ -624,12 +624,19 @@ class GitlabOAuthProvider(OAuthProvider):
 
 class CustomOAuthProvider(OAuthProvider):
     id = "custom"
-    env = ["OAUTH_CUSTOM_ENABLED", "OAUTH_CUSTOM_DOMAIN", "OAUTH_CUSTOM_JWKS_ENDPOINT"]
+    env = [
+        "OAUTH_CUSTOM_ENABLED",
+        "OAUTH_CUSTOM_DOMAIN",
+        "OAUTH_CUSTOM_JWKS_DOMAIN",
+        "OAUTH_CUSTOM_CLIENT_ID"
+    ]
 
     def __init__(self):
         self.domain = f"https://{os.environ.get('OAUTH_CUSTOM_DOMAIN','').rstrip('/')}"
         self.authorize_url = f"{self.domain}/login"
-        self.jwks_endpoint = os.environ.get("OAUTH_CUSTOM_JWKS_ENDPOINT")
+        self.jwks_client_id = os.environ.get("OAUTH_CUSTOM_CLIENT_ID")
+        self.jwks_endpoint = f"https://{os.environ.get("OAUTH_CUSTOM_JWKS_DOMAIN")}/.well-known/jwks.json"
+        self.jwks_issuer = f"https://{os.environ.get("OAUTH_CUSTOM_JWKS_DOMAIN")}"
 
 
 providers = [
